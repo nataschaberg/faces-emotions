@@ -3,3 +3,4 @@ seaborn
 streamlit==1.18.1
 streamlit-option-menu==0.3.2
 Pillow==9.3.0
+tensorflow==2.11.0
