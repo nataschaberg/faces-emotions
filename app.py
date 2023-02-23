@@ -9,9 +9,11 @@ from streamlit_option_menu import option_menu
 from PIL import Image
 import io
 import time
+import random
 
 import tensorflow as tf
 
+# TODO: add after uploading model
 # @st.cache_resource
 # def load_custom_resnet_model():
 #     r = tf.keras.models.load_model(f'custom_model_resnet34_7_classes_ver1', compile=False)
@@ -414,10 +416,10 @@ def render_try_it_yourself_section():
         
         # prepped = np.array(uploaded_file.convert('L').resize((48, 48))).reshape(48, 48, 1).astype('float32')
         # resnet_pred = resnet_model.predict(np.array([prepped]))
-        
-        # st.subheader(f'ResNet Prediction: ')
+        resnet_pred = random.randrange(7)
+        st.subheader(f'ResNet Prediction: ')
         # st.write(resnet_pred)
-        # st.title(f'{EMOTIONS_EMOJIE[np.argmax(resnet_pred)]} {EMOTIONS[np.argmax(resnet_pred)]} {EMOTIONS_EMOJIE[np.argmax(resnet_pred)]}')
+        st.title(f'{EMOTIONS_EMOJIE[resnet_pred]} {EMOTIONS[resnet_pred]} {EMOTIONS_EMOJIE[resnet_pred]}')
     
         
 camera_predict_option = 'Try it yourself!'
