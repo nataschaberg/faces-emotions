@@ -10,6 +10,13 @@ from PIL import Image
 import io
 import time
 
+import tensorflow as tf
+
+# @st.cache_resource
+# def load_custom_resnet_model():
+#     r = tf.keras.models.load_model(f'custom_model_resnet34_7_classes_ver1', compile=False)
+#     return r
+
 
 @st.cache_data
 def load_data():
@@ -50,6 +57,15 @@ EMOTIONS = {
 
 EMOTIONS_NUMS = {key: value for (value, key) in EMOTIONS.items()}
 
+EMOTIONS_EMOJIE = {
+    0: '😠',
+    1: '🤢',
+    2: '😱',
+    3: '😃',
+    4: '😥',
+    5: '😲',
+    6: '😐'
+}
 
 def get_class_category(num):
     return EMOTIONS[num]
@@ -151,11 +167,192 @@ def render_home_section():
     
 
 def render_model_section():
-    st.subheader('Model')
+    st.title('Model')
+    st.subheader('Model Architecture')
+    st.markdown('- ResNet (short for "Residual Network") is a deep neural network architecture developed by Microsoft Research in 2015. \n - It introduced the concept of "skip connections" to solve the problem of vanishing gradients in very deep neural networks. \n - Skip connections allow the network to bypass one or more layers, allowing the gradient to flow more easily and making it easier for the network to learn. \n - ResNet is typically built using residual blocks, which consist of two or more convolutional layers followed by a shortcut connection. The shortcut connection adds the input of the residual block to its output, allowing the network to learn a residual mapping instead of trying to learn the entire mapping from inputs to outputs. \n - ResNet comes in various depths, from 18 layers (ResNet-18) to over 1000 layers (ResNet-1000).', unsafe_allow_html=True)
+
+    st.write(' ')
+    st.write(' ') 
+    st.markdown('**Example of Stacked Layers**')
+    st.image('https://www.researchgate.net/profile/Sajid-Iqbal-13/publication/336642248/figure/fig1/AS:839151377203201@1577080687133/Original-ResNet-18-Architecture.png')
+    st.markdown('<sup>[Source](https://www.researchgate.net/figure/Original-ResNet-18-Architecture_fig1_336642248)</sup><br /><br />', unsafe_allow_html=True)
+
+    st.markdown('**Residual Block - Zoom In**')
+    st.image('https://media.geeksforgeeks.org/wp-content/uploads/20200424011510/Residual-Block.PNG')
+    st.markdown('<sup>[Source: Deep Residual Learning for Image Recognition](https://arxiv.org/pdf/1512.03385.pdf)</sup><br /><br />', unsafe_allow_html=True)
+
+    st.markdown('**Different Types of ResNet - Overview**')
+    st.image('https://pytorch.org/assets/images/resnet.png')
+    st.markdown('<sup>[Source: Deep Residual Learning for Image Recognition](https://arxiv.org/pdf/1512.03385.pdf)</sup><br /><br />', unsafe_allow_html=True)
+
+
+    st.subheader('Model Performance')
+
+    st.markdown('**Benchmark for FER-2013 dataset - Shown for ResNet Models**')
+    st.image('https://github.com/nataschaberg/faces-emotions/blob/master/figures/fer-2012-resnet-benchmark.png?raw=true')
+ 
+    st.write(' ')
+    st.write(' ') 
+
+    st.markdown('#### My Model Performance so far ...')
+    st.markdown('**Loss Progression**')
+    col1, col2 = st.columns(2)
+
+
+    col1.image('https://raw.githubusercontent.com/nataschaberg/faces-emotions/master/figures/7_classes_ver1_10epochs.png')
+    col2.image('https://raw.githubusercontent.com/nataschaberg/faces-emotions/master/figures/7_classes_ver1_20epochs.png')
+
+
+    st.markdown('**Accuracy Progression**')
+    col3, col4 = st.columns(2)
+    
+    col3.image('https://raw.githubusercontent.com/nataschaberg/faces-emotions/master/figures/7_classes_ver1_10epochs_acc.png')
+    col4.image('https://raw.githubusercontent.com/nataschaberg/faces-emotions/master/figures/7_classes_ver1_20epochs_acc.png')
+
+    st.markdown('##### loss: 0.9897 - accuracy: 0.6291  - val_loss: 1.0465 - val_accuracy: 0.6076 <br /><br />', unsafe_allow_html=True)
+
+    st.image('https://github.com/nataschaberg/faces-emotions/blob/master/figures/resnet_confusion_matrix.png?raw=true')
+
+    st.subheader('Model Implementation Code - ResNet 34-Layer')
+    st.write(' ')
+    st.write(' ')
+    st.markdown('**Custom Conv2D Layer**  - inherits from Layer <br /> **Main responsibilities**: <br /> 1) takes care of combining convolution layer and <br /> 2) batch normalization', unsafe_allow_html=True)
+
+    code_custom_conv2d_layer = '''
+    class CustomConv2D(Layer):
+        def __init__(self, n_filters, kernel_size, n_strides, padding='valid'):
+            super(CustomConv2D, self).__init__(name='custom_conv2d')
+            
+            self.conv = Conv2D(filters=n_filters,
+                            kernel_size=kernel_size,
+                            activation='relu',
+                            strides=n_strides,
+                            padding=padding)
+            
+            
+            self.batch_norm = BatchNormalization()
+            
+        def call(self, x):
+            x = self.conv(x)
+            x = self.batch_norm(x)
+            
+            return x
+    '''
+    st.code(code_custom_conv2d_layer, language='python')
+    st.write(' ')
+    st.markdown('**Residual Block**  - inherits from Layer <br /> **Main responsibilities**: <br /> 1) encompass two or three custom conv2D layers <br /> 2) takes care of skip connection <br /> 3) makes sure that if we have a change in dimensions that this is compatible on ADD step (see `self.inputs.deviate`)', unsafe_allow_html=True)
+
+
+    code_custom_resblock = '''
+    class ResidualBlock(Layer):
+        def __init__(self, n_channels, n_strides=1):
+            super(ResidualBlock, self).__init__(name='res_block')
+                    
+            self.inputs_deviate = (n_strides != 1)
+            
+            self.custom_conv_1 = CustomConv2D(n_channels, 3,
+                                              n_strides, padding='same')
+            self.custom_conv_2 = CustomConv2D(n_channels, 3, 1, 
+                                              padding='same')
+            self.activation = Activation('relu')
+                    
+            if self.inputs_deviate:
+                self.custom_conv_3 = CustomConv2D(n_channels, 1,
+                                     n_strides) # filter 1x1
+                
+            
+        def call(self, input):
+            x = self.custom_conv_1(input)
+            x = self.custom_conv_2(x)
+            
+            if self.inputs_deviate:
+                x_add = self.custom_conv_3(input)
+                x_add = Add()([x, x_add])
+            else:
+                x_add = Add()([x, input])
+            
+            
+            return self.activation(x_add)
+    '''
+    st.code(code_custom_resblock, language='python')
+
+
+    st.write(' ')
+    st.markdown('**Custom ResNet 34**  - inherits from Model <br /> **Main responsibilities**: <br /> 1) wraps all elements in one structure  <br /> 2) outlines the explicit layer sequence for resnet 34', unsafe_allow_html=True)
+    code_resnet = '''
+    class CustomResNet34(Model):
+        def __init__(self, num_classes):
+            super(CustomResNet34, self).__init__(name='resnet_34')
+            
+            # first section from paper
+            self.conv_1 = CustomConv2D(64, 7, 2, padding='same')
+            self.max_pool = MaxPool2D(3, 2)
+            
+            # ======= # paper: conv2_x section
+            self.conv_2_1 = ResidualBlock(64)
+            self.conv_2_2 = ResidualBlock(64)
+            self.conv_2_3 = ResidualBlock(64)
+            
+            # ======= # paper: conv3_x section
+            self.conv_3_1 = ResidualBlock(128, 2)
+            self.conv_3_2 = ResidualBlock(128)
+            self.conv_3_3 = ResidualBlock(128)
+            self.conv_3_4 = ResidualBlock(128)
+            
+            # ======= # paper: conv4_x section
+            self.conv_4_1 = ResidualBlock(256, 2)
+            self.conv_4_2 = ResidualBlock(256)
+            self.conv_4_3 = ResidualBlock(256)
+            self.conv_4_4 = ResidualBlock(256)
+            self.conv_4_5 = ResidualBlock(256)
+            self.conv_4_6 = ResidualBlock(256)
+            
+            # ======= # paper: conv5_x section
+            self.conv_5_1 = ResidualBlock(512, 2)
+            self.conv_5_2 = ResidualBlock(512)
+            self.conv_5_3 = ResidualBlock(512)
+            
+            self.global_pool = GlobalAveragePooling2D()
+            self.fc_dense = Dense(num_classes, activation='softmax')
+            
+            
+        
+        def call(self, x):
+            x = self.conv_1(x)
+            x = self.max_pool(x)
+            
+            x = self.conv_2_1(x)
+            x = self.conv_2_2(x)
+            x = self.conv_2_3(x)
+            
+            x = self.conv_3_1(x)
+            x = self.conv_3_2(x)
+            x = self.conv_3_3(x)
+            x = self.conv_3_4(x)
+            
+            x = self.conv_4_1(x)
+            x = self.conv_4_2(x)
+            x = self.conv_4_3(x) 
+            x = self.conv_4_4(x)
+            x = self.conv_4_5(x)
+            x = self.conv_4_6(x)
+            
+            x = self.conv_5_1(x)
+            x = self.conv_5_2(x)
+            x = self.conv_5_3(x)
+            
+            x = self.global_pool(x)
+            x = self.fc_dense(x)
+            
+            return x
+    '''
+    st.code(code_resnet, language='python')
 
 
 def render_try_it_yourself_section():
     uploaded_file = None
+    #resnet_model = load_custom_resnet_model()
+
     st.sidebar.write('ℹ️ Please note:  <br /> uploaded pictures are not saved on our servers!', unsafe_allow_html=True)
     st.header('Now you can try it yourself')
 
@@ -209,12 +406,20 @@ def render_try_it_yourself_section():
         col4.image(a) 
 
 
-        st.subheader('Preprocess for model')
+        st.subheader('Preprocess for Cutom ResNet Model')
         coly, colz = st.columns(2)
         coly.image(uploaded_file.convert('L'), caption=f'Original dimesions {arr.shape[0]} x {arr.shape[1]} pixel')
         colz.image(uploaded_file.convert('L').resize((48, 48)), width=200, caption='Adjusted dimensions 48 x 48 pixel')
-    
 
+        
+        # prepped = np.array(uploaded_file.convert('L').resize((48, 48))).reshape(48, 48, 1).astype('float32')
+        # resnet_pred = resnet_model.predict(np.array([prepped]))
+        
+        # st.subheader(f'ResNet Prediction: ')
+        # st.write(resnet_pred)
+        # st.title(f'{EMOTIONS_EMOJIE[np.argmax(resnet_pred)]} {EMOTIONS[np.argmax(resnet_pred)]} {EMOTIONS_EMOJIE[np.argmax(resnet_pred)]}')
+    
+        
 camera_predict_option = 'Try it yourself!'
 
 with st.sidebar:
@@ -230,3 +435,4 @@ if selected == 'Model':
 
 if selected == camera_predict_option:
     render_try_it_yourself_section()
+
