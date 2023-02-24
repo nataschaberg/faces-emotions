@@ -9,15 +9,14 @@ from streamlit_option_menu import option_menu
 from PIL import Image
 import io
 import time
-import random
 
 import tensorflow as tf
 
-# TODO: add after uploading model
-# @st.cache_resource
-# def load_custom_resnet_model():
-#     r = tf.keras.models.load_model(f'custom_model_resnet34_7_classes_ver1', compile=False)
-#     return r
+
+@st.cache_resource
+def load_custom_resnet_model():
+    r = tf.keras.models.load_model(f'custom_model_resnet34_2_dense_layer', compile=False)
+    return r
 
 
 @st.cache_data
@@ -353,12 +352,12 @@ def render_model_section():
 
 def render_try_it_yourself_section():
     uploaded_file = None
-    #resnet_model = load_custom_resnet_model()
+    resnet_model = load_custom_resnet_model()
 
     st.sidebar.write('ℹ️ Please note:  <br /> uploaded pictures are not saved on our servers!', unsafe_allow_html=True)
     st.header('Now you can try it yourself')
 
-    img_mode = st.radio('Upload Image from disk or sue your webcam?', ('disk', 'webcam'), horizontal=True)
+    img_mode = st.radio('Upload Image from disk or use your webcam', ('disk', 'webcam'), horizontal=True)
     st.write(' ')
     st.write(' ')
 
@@ -414,12 +413,12 @@ def render_try_it_yourself_section():
         colz.image(uploaded_file.convert('L').resize((48, 48)), width=200, caption='Adjusted dimensions 48 x 48 pixel')
 
         
-        # prepped = np.array(uploaded_file.convert('L').resize((48, 48))).reshape(48, 48, 1).astype('float32')
-        # resnet_pred = resnet_model.predict(np.array([prepped]))
-        resnet_pred = random.randrange(7)
+        prepped = np.array(uploaded_file.convert('L').resize((48, 48))).reshape(48, 48, 1).astype('float32')
+        resnet_pred = resnet_model.predict(np.array([prepped/255.]))
+
         st.subheader(f'ResNet Prediction: ')
-        # st.write(resnet_pred)
-        st.title(f'{EMOTIONS_EMOJIE[resnet_pred]} {EMOTIONS[resnet_pred]} {EMOTIONS_EMOJIE[resnet_pred]}')
+        st.write(resnet_pred)
+        st.title(f'{EMOTIONS_EMOJIE[np.argmax(resnet_pred)]} {EMOTIONS[np.argmax(resnet_pred)]} {EMOTIONS_EMOJIE[np.argmax(resnet_pred)]}')
     
         
 camera_predict_option = 'Try it yourself!'
